@@ -52,3 +52,9 @@ property fracwidth {
     type = longint unsigned;
     component = field;
 };
+
+property parity_exclude {
+    type = boolean;
+    component = reg | field;
+    default = true;
+};

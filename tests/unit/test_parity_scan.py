@@ -162,3 +162,118 @@ def test_external_register_is_skipped(tmp_path):
     field_names = [node.inst_name for (node, *_) in e.ds.parity_fields]
     assert "f_ext" not in field_names, \
         f"Field 'f_ext' from external reg should be skipped; got {field_names}"
+
+
+# -----------------------------------------------------------------------------
+# parity_exclude UDP
+# -----------------------------------------------------------------------------
+
+# Inline RDL exercising every parity_exclude shape: none, reg-level (propagates
+# to all child fields), field-level only, and bare `parity_exclude;`. Compiled
+# via _elaborate(), which uses register_udp(soft=True) + hdl-src/regblock_udps.rdl
+# — the same flow as the peakrdl-cli host. This catches missing RDL declarations
+# of the UDP, not just the Python registration.
+_PARITY_EXCLUDE_RDL = """
+addrmap top {
+    default sw=rw; default hw=na;
+    reg { field { sw=rw; hw=r; } f_a[8] = 0; } r_normal @ 0x000;
+    reg {
+        parity_exclude = true;
+        field { sw=rw; hw=r; } f_x[8] = 0;
+        field { sw=rw; hw=r; } f_y[8] = 0;
+    } r_excl_reg @ 0x004;
+    reg {
+        field { sw=rw; hw=r; } f_in[8] = 0;
+        field { sw=rw; hw=r; parity_exclude = true; } f_out[8] = 0;
+    } r_mixed @ 0x008;
+    reg {
+        parity_exclude;
+        field { sw=rw; hw=r; } f_z[8] = 0;
+    } r_bare @ 0x00C;
+};
+"""
+
+
+def _elaborate_inline(rdl_text: str, tmp_path, message_printer=None):
+    import os
+    if message_printer is not None:
+        rdlc = RDLCompiler(message_printer=message_printer)
+    else:
+        rdlc = RDLCompiler()
+    for udp in ALL_UDPS:
+        rdlc.register_udp(udp)
+    rdlc.compile_file(os.path.join(REPO_ROOT, "hdl-src/regblock_udps.rdl"))
+    rdl_path = tmp_path / "inline.rdl"
+    rdl_path.write_text(rdl_text)
+    rdlc.compile_file(str(rdl_path))
+    return rdlc.elaborate()
+
+
+def test_parity_exclude_udp_is_recognized_in_rdl(tmp_path):
+    """Soft-registered UDPs require a matching `property` declaration in
+    hdl-src/regblock_udps.rdl. Without it, user RDL fails to parse with
+    'Unrecognized property'. This is the regression guard."""
+    # Just compiling without raising is the assertion.
+    _elaborate_inline(_PARITY_EXCLUDE_RDL, tmp_path)
+
+
+def test_parity_exclude_skips_excluded_fields(tmp_path):
+    root = _elaborate_inline(_PARITY_EXCLUDE_RDL, tmp_path)
+    e = RegblockExporter()
+    e.export(
+        root, str(tmp_path),
+        module_name="regblock", package_name="regblock_pkg",
+        bytewise_parity=True,
+    )
+    names = [n.inst_name for (n, *_) in e.ds.parity_fields]
+    # f_x, f_y excluded via reg; f_out via field; f_z via bare reg-level.
+    assert names == ["f_a", "f_in"], names
+
+
+def test_parity_exclude_helper_resolves_reg_and_field(tmp_path):
+    from peakrdl_regblock.parity import is_parity_excluded
+    root = _elaborate_inline(_PARITY_EXCLUDE_RDL, tmp_path)
+    top = root.find_by_path("top")
+
+    assert is_parity_excluded(top.find_by_path("r_excl_reg"))
+    assert is_parity_excluded(top.find_by_path("r_excl_reg").find_by_path("f_x"))
+    assert is_parity_excluded(top.find_by_path("r_excl_reg").find_by_path("f_y"))
+
+    assert not is_parity_excluded(top.find_by_path("r_mixed"))
+    assert not is_parity_excluded(top.find_by_path("r_mixed").find_by_path("f_in"))
+    assert is_parity_excluded(top.find_by_path("r_mixed").find_by_path("f_out"))
+
+    assert not is_parity_excluded(top.find_by_path("r_normal"))
+    assert not is_parity_excluded(top.find_by_path("r_normal").find_by_path("f_a"))
+
+
+def test_parity_exclude_warns_in_legacy_mode(tmp_path):
+    printer = _CountingPrinter()
+    root = _elaborate_inline(_PARITY_EXCLUDE_RDL, tmp_path, message_printer=printer)
+    initial = len(printer.warnings)
+    e = RegblockExporter()
+    e.export(
+        root, str(tmp_path),
+        module_name="regblock", package_name="regblock_pkg",
+        # bytewise_parity defaults to False
+    )
+    new_warnings = printer.warnings[initial:]
+    pe_warnings = [w for w in new_warnings if "parity_exclude" in w]
+    # r_excl_reg, r_bare (reg-level) and f_out (field-level) — 3 sites.
+    assert len(pe_warnings) >= 3, pe_warnings
+    assert all("--parity-byte" in w for w in pe_warnings), pe_warnings
+
+
+def test_parity_exclude_no_warning_under_bytewise(tmp_path):
+    printer = _CountingPrinter()
+    root = _elaborate_inline(_PARITY_EXCLUDE_RDL, tmp_path, message_printer=printer)
+    initial = len(printer.warnings)
+    e = RegblockExporter()
+    e.export(
+        root, str(tmp_path),
+        module_name="regblock", package_name="regblock_pkg",
+        bytewise_parity=True,
+    )
+    new_warnings = printer.warnings[initial:]
+    pe_warnings = [w for w in new_warnings if "parity_exclude" in w]
+    assert pe_warnings == [], pe_warnings
