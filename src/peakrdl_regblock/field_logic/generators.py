@@ -9,6 +9,7 @@ from ..struct_generator import RDLStructGenerator
 from ..forloop_generator import RDLForLoopGenerator
 from ..utils import get_indexed_path, clog2
 from ..identifier_filter import kw_filter as kwf
+from ..parity import is_parity_excluded
 from .bases import NextStateUnconditional
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ class CombinationalStructGenerator(RDLStructGenerator):
             self.add_up_counter_members(node)
         if node.is_down_counter:
             self.add_down_counter_members(node)
-        if self.field_logic.ds.bytewise_parity and node.implements_storage:
+        if self.field_logic.ds.bytewise_parity and node.implements_storage and not is_parity_excluded(node):
             byte_count = (node.width + 7) // 8
             # Always emit as packed vectors so single-byte fields can be
             # uniformly bit-selected with `[0]`.
@@ -101,7 +102,7 @@ class FieldStorageStructGenerator(RDLStructGenerator):
 
         if node.implements_storage:
             self.add_member("value", node.width)
-            if self.field_logic.ds.bytewise_parity:
+            if self.field_logic.ds.bytewise_parity and not is_parity_excluded(node):
                 byte_count = (node.width + 7) // 8
                 # Always emit as a packed vector so single-byte fields can be
                 # uniformly bit-selected with `parity[0]`.

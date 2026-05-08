@@ -101,6 +101,14 @@ class DesignScanner(RDLListener):
         if node.get_property('buffer_reads') and not node.external:
             self.ds.has_buffered_read_regs = True
 
+        if node.get_property('parity_exclude', default=False) and not self.ds.bytewise_parity:
+            self.msg.warning(
+                f"Reg '{node.inst_name}' sets parity_exclude=true, but the regblock "
+                "is not being generated with --parity-byte. The property has no effect "
+                "in legacy paritycheck mode and is ignored.",
+                self.top_node.property_src_ref.get('parity_exclude', node.inst_src_ref)
+            )
+
     def enter_Signal(self, node: 'SignalNode') -> None:
         if node.get_property('field_reset'):
             path = node.get_path()
@@ -109,6 +117,14 @@ class DesignScanner(RDLListener):
     def enter_Field(self, node: 'FieldNode') -> None:
         if node.is_sw_writable and (node.msb < node.lsb):
             self.ds.has_writable_msb0_fields = True
+
+        if node.get_property('parity_exclude', default=False) and not self.ds.bytewise_parity:
+            self.msg.warning(
+                f"Field '{node.inst_name}' sets parity_exclude=true, but the regblock "
+                "is not being generated with --parity-byte. The property has no effect "
+                "in legacy paritycheck mode and is ignored.",
+                self.top_node.property_src_ref.get('parity_exclude', node.inst_src_ref)
+            )
 
         if node.get_property('paritycheck') and node.implements_storage:
             if self.ds.bytewise_parity:
@@ -159,6 +175,11 @@ class _BytewiseParityScanner(RDLListener):
 
     def enter_Field(self, node: 'FieldNode') -> None:
         if not node.implements_storage:
+            return
+
+        # User-driven opt-out via the `parity_exclude` UDP (reg- or field-level).
+        from .parity import is_parity_excluded
+        if is_parity_excluded(node):
             return
 
         # Defense: external descendants must already be skipped by enter_Component.

@@ -13,6 +13,7 @@ from . import hw_interrupts_with_write
 
 from ..utils import get_indexed_path
 from ..sv_int import SVInt
+from ..parity import is_parity_excluded
 
 from .generators import CombinationalStructGenerator, FieldStorageStructGenerator, FieldLogicGenerator
 
@@ -267,6 +268,9 @@ class FieldLogic:
         else:
             return " || ".join(conditions)
 
+
+    def is_parity_excluded(self, field: 'FieldNode') -> bool:
+        return is_parity_excluded(field)
 
     def get_parity_identifier(self, field: 'FieldNode') -> str:
         """

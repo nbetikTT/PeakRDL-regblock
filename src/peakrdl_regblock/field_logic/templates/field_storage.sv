@@ -43,7 +43,7 @@ always_comb begin
     {%- if node.get_property('paritycheck') %}
     {{field_logic.get_parity_error_identifier(node)}} = ({{field_logic.get_parity_identifier(node)}} != {% if ds.odd_parity %}~{% endif %}^{{field_logic.get_storage_identifier(node)}});
     {%- endif %}
-    {%- if ds.bytewise_parity and node.implements_storage %}
+    {%- if ds.bytewise_parity and node.implements_storage and not field_logic.is_parity_excluded(node) %}
     {%- set byte_count = ((node.width + 7) // 8) %}
     {%- for i in range(byte_count) %}
     {%- set slice_lo = 8 * i %}
@@ -66,7 +66,7 @@ always_ff {{get_always_ff_event(resetsignal)}} begin
         {%- if node.get_property('paritycheck') %}
         {{field_logic.get_parity_identifier(node)}} <= {% if ds.odd_parity %}~{% endif %}^{{reset}};
         {%- endif %}
-        {%- if ds.bytewise_parity and node.implements_storage and reset is not none %}
+        {%- if ds.bytewise_parity and node.implements_storage and reset is not none and not field_logic.is_parity_excluded(node) %}
         {%- set byte_count = ((node.width + 7) // 8) %}
         {%- for i in range(byte_count) %}
         {%- set slice_lo = 8 * i %}
@@ -83,7 +83,7 @@ always_ff {{get_always_ff_event(resetsignal)}} begin
             {%- if node.get_property('paritycheck') %}
             {{field_logic.get_parity_identifier(node)}} <= {% if ds.odd_parity %}~{% endif %}^{{field_logic.get_field_combo_identifier(node, "next")}};
             {%- endif %}
-            {%- if ds.bytewise_parity and node.implements_storage %}
+            {%- if ds.bytewise_parity and node.implements_storage and not field_logic.is_parity_excluded(node) %}
             {%- set byte_count = ((node.width + 7) // 8) %}
             {%- for i in range(byte_count) %}
             {%- set slice_lo = 8 * i %}
@@ -110,7 +110,7 @@ always_ff @(posedge clk) begin
         {%- if node.get_property('paritycheck') %}
         {{field_logic.get_parity_identifier(node)}} <= {% if ds.odd_parity %}~{% endif %}^{{field_logic.get_field_combo_identifier(node, "next")}};
         {%- endif %}
-        {%- if ds.bytewise_parity and node.implements_storage %}
+        {%- if ds.bytewise_parity and node.implements_storage and not field_logic.is_parity_excluded(node) %}
         {%- set byte_count = ((node.width + 7) // 8) %}
         {%- for i in range(byte_count) %}
         {%- set slice_lo = 8 * i %}

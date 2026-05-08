@@ -7,7 +7,20 @@ from .forloop_generator import RDLForLoopGenerator
 
 if TYPE_CHECKING:
     from .exporter import RegblockExporter, DesignState
-    from systemrdl.node import FieldNode, AddressableNode, AddrmapNode
+    from systemrdl.node import FieldNode, AddressableNode, AddrmapNode, Node
+
+
+def is_parity_excluded(node: 'Node') -> bool:
+    """True if this node opts out of bytewise parity. A Reg-level
+    `parity_exclude=true` propagates to all of its fields."""
+    from systemrdl.node import FieldNode, RegNode
+    if isinstance(node, (FieldNode, RegNode)) and node.get_property('parity_exclude', default=False):
+        return True
+    if isinstance(node, FieldNode):
+        parent = node.parent
+        if isinstance(parent, RegNode) and parent.get_property('parity_exclude', default=False):
+            return True
+    return False
 
 
 class ParityErrorReduceGenerator(RDLForLoopGenerator):
