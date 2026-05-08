@@ -71,7 +71,7 @@ always_ff {{get_always_ff_event(resetsignal)}} begin
         {%- for i in range(byte_count) %}
         {%- set slice_lo = 8 * i %}
         {%- set slice_hi = ([8 * i + 7, node.width - 1] | min) %}
-        {{field_logic.get_parity_byte_storage_identifier(node, i)}} <= {% if ds.odd_parity %}~{% endif %}^(({{node.width}}'({{reset}})) >> {{slice_lo}});
+        {{field_logic.get_parity_byte_storage_identifier(node, i)}} <= {% if ds.odd_parity %}~{% endif %}^(({{node.width}}'({{reset}}))[{{slice_hi}}:{{slice_lo}}]);
         {%- endfor %}
         {%- endif %}
         {%- if field_logic.has_next_q(node) %}
