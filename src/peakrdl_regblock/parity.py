@@ -92,19 +92,16 @@ class BytewiseParityModuleGenerator:
             lines.append(f"assign field_parity_mismatch_{ident} = {mismatch_terms};")
         return "\n".join(lines)
 
-    def get_sticky_latch_block(self) -> str:
-        """Always_ff that latches each per-field mismatch into the sticky field_parity_error vector."""
+    def get_comb_error_assign(self) -> str:
+        """Combinational drive of each field_parity_error bit from its per-field
+        mismatch reducer. Latching is centralized outside the regblock."""
         if not self.ds.has_bytewise_parity:
             return ""
         lines = []
         for (node, _bc, ferr_idx, _fp) in self.ds.parity_fields:
             ident = parity_path_id(self.ds.top_node, node)
             lines.append(
-                f"if (error_clear_i) field_parity_error[{ferr_idx}] <= 1'b0;"
-            )
-            lines.append(
-                f"else if (field_parity_mismatch_{ident}) "
-                f"field_parity_error[{ferr_idx}] <= 1'b1;"
+                f"assign field_parity_error[{ferr_idx}] = field_parity_mismatch_{ident};"
             )
         return "\n".join(lines)
 
