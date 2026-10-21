@@ -36,6 +36,7 @@ class AXI4Lite_Cpuif(CpuifBase):
 
 class AXI4Lite_Cpuif_flattened(AXI4Lite_Cpuif):
     is_interface = False
+    supports_wr_path_parity = True
 
     @property
     def port_declaration(self) -> str:
@@ -64,6 +65,12 @@ class AXI4Lite_Cpuif_flattened(AXI4Lite_Cpuif):
             f"output logic [{self.data_width-1}:0] " + self.signal("rdata"),
             "output logic [1:0] " + self.signal("rresp"),
         ]
+        if self.exp.ds.wr_path_parity:
+            idx = lines.index(f"input wire [{self.data_width_bytes-1}:0]" + self.signal("wstrb")) + 1
+            lines[idx:idx] = [
+                f"input wire [{self.wr_datachk_width-1}:0] " + self.signal("wdatachk"),
+                f"input wire [{self.wr_strbchk_width-1}:0] " + self.signal("wstrbchk"),
+            ]
         return ",\n".join(lines)
 
     def signal(self, name:str) -> str:

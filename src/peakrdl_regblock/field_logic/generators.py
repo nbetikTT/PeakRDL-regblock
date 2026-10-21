@@ -287,6 +287,13 @@ class FieldLogicGenerator(RDLForLoopGenerator):
             self.add_content(
                 f"assign {output_identifier} = {value};"
             )
+            if (self.ds.parity_export and self.ds.bytewise_parity
+                    and node.implements_storage and not is_parity_excluded(node)):
+                path = get_indexed_path(self.exp.ds.top_node, node)
+                parity = self.field_logic.get_parity_identifier(node)
+                self.add_content(
+                    f"assign hwif_out.{path}.parity = {parity};"
+                )
 
         # Inferred logical reduction outputs
         if node.get_property('anded'):
@@ -370,8 +377,10 @@ class FieldLogicGenerator(RDLForLoopGenerator):
         width = min(self.exp.cpuif.data_width, node.get_property('regwidth'))
         if width != self.exp.cpuif.data_width:
             bslice = f"[{width - 1}:0]"
+            datachk_slice = f"[{width // 8 - 1}:0]"
         else:
             bslice = ""
+            datachk_slice = ""
 
         context = {
             'node': node,
@@ -380,6 +389,8 @@ class FieldLogicGenerator(RDLForLoopGenerator):
             "prefix": prefix,
             "strb": strb,
             "bslice": bslice,
+            "datachk_slice": datachk_slice,
+            "wr_path_parity": self.ds.wr_path_parity,
             "retime": self.ds.retime_external_reg,
             'get_always_ff_event': self.exp.dereferencer.get_always_ff_event,
             "get_resetsignal": self.exp.dereferencer.get_resetsignal,
@@ -406,6 +417,7 @@ class FieldLogicGenerator(RDLForLoopGenerator):
             "strb": strb,
             "addr_width": addr_width,
             "retime": retime,
+            "wr_path_parity": self.ds.wr_path_parity,
             'get_always_ff_event': self.exp.dereferencer.get_always_ff_event,
             "get_resetsignal": self.exp.dereferencer.get_resetsignal,
             "resetsignal": self.exp.ds.top_node.cpuif_reset,

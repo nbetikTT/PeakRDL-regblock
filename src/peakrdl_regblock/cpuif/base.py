@@ -14,6 +14,10 @@ class CpuifBase:
     # Path is relative to the location of the class that assigns this variable
     template_path = ""
 
+    # Whether this interface can expose the write parity sideband that
+    # --parity-wr-path requires (cpuif_wr_datachk / cpuif_wr_strbchk)
+    supports_wr_path_parity = False
+
     def __init__(self, exp:'RegblockExporter'):
         self.exp = exp
         self.reset = exp.ds.top_node.cpuif_reset
@@ -29,6 +33,16 @@ class CpuifBase:
     @property
     def data_width_bytes(self) -> int:
         return self.data_width // 8
+
+    @property
+    def wr_datachk_width(self) -> int:
+        # One parity bit per write-data byte (AXI5 WDATACHK)
+        return self.data_width_bytes
+
+    @property
+    def wr_strbchk_width(self) -> int:
+        # One parity bit per 8 write strobes (AXI5 WSTRBCHK)
+        return (self.data_width_bytes + 7) // 8
 
     @property
     def port_declaration(self) -> str:
