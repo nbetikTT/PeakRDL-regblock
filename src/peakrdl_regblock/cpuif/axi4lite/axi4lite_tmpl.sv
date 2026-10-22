@@ -21,6 +21,10 @@ logic [{{cpuif.addr_width-1}}:0] axil_awaddr;
 logic axil_wvalid;
 logic [{{cpuif.data_width-1}}:0] axil_wdata;
 logic [{{cpuif.data_width_bytes-1}}:0] axil_wstrb;
+{%- if ds.wr_path_parity %}
+logic [{{cpuif.wr_datachk_width-1}}:0] axil_wdatachk;
+logic [{{cpuif.wr_strbchk_width-1}}:0] axil_wstrbchk;
+{%- endif %}
 logic axil_aw_accept;
 logic axil_resp_acked;
 
@@ -35,6 +39,10 @@ always_ff {{get_always_ff_event(cpuif.reset)}} begin
         axil_wvalid <= '0;
         axil_wdata <= '0;
         axil_wstrb <= '0;
+        {%- if ds.wr_path_parity %}
+        axil_wdatachk <= '0;
+        axil_wstrbchk <= '0;
+        {%- endif %}
         axil_n_in_flight <= '0;
     end else begin
         // AR* acceptance register
@@ -61,6 +69,10 @@ always_ff {{get_always_ff_event(cpuif.reset)}} begin
             axil_wvalid <= '1;
             axil_wdata <= {{cpuif.signal("wdata")}};
             axil_wstrb <= {{cpuif.signal("wstrb")}};
+            {%- if ds.wr_path_parity %}
+            axil_wdatachk <= {{cpuif.signal("wdatachk")}};
+            axil_wstrbchk <= {{cpuif.signal("wstrbchk")}};
+            {%- endif %}
         end
 
         // Keep track of in-flight transactions
@@ -84,6 +96,10 @@ always_comb begin
     for(int i=0; i<{{cpuif.data_width_bytes}}; i++) begin
         cpuif_wr_biten[i*8 +: 8] = {8{axil_wstrb[i]}};
     end
+    {%- if ds.wr_path_parity %}
+    cpuif_wr_datachk = axil_wdatachk;
+    cpuif_wr_strbchk = axil_wstrbchk;
+    {%- endif %}
     cpuif_req = '0;
     cpuif_req_is_wr = '0;
     cpuif_addr = '0;

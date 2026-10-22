@@ -106,6 +106,52 @@ class BytewiseParityModuleGenerator:
         return "\n".join(lines)
 
 
+class WritePathParityGenerator:
+    """
+    Emits the SV for --parity-wr-path: recompute byte parity over the decoded
+    write data and byte-enables and compare against the parity that arrived
+    with the transaction. Only strobed bytes are compared, and only while a
+    write is being consumed, so idle cycles and unwritten bytes never flag.
+    """
+
+    def __init__(self, exp: 'RegblockExporter') -> None:
+        self.exp = exp
+
+    @property
+    def ds(self) -> 'DesignState':
+        return self.exp.ds
+
+    def get_implementation(self) -> str:
+        if not self.ds.wr_path_parity:
+            return ""
+        nb = self.exp.cpuif.wr_datachk_width
+        ns = self.exp.cpuif.wr_strbchk_width
+        inv = "~" if self.ds.odd_parity else ""
+        lines = [
+            f"logic [{nb - 1}:0] wr_path_strb;",
+            f"logic [{nb - 1}:0] wr_path_biten_err;",
+            f"logic [{nb - 1}:0] wr_path_datachk_calc;",
+            f"logic [{ns - 1}:0] wr_path_strbchk_calc;",
+            "always_comb begin",
+            f"    for(int b=0; b<{nb}; b++) begin",
+            "        wr_path_strb[b] = decoded_wr_biten[b*8];",
+            "        // Byte-enables are a replicated strobe: any disagreeing bit is a fault",
+            "        wr_path_biten_err[b] = (|decoded_wr_biten[b*8 +: 8]) & ~(&decoded_wr_biten[b*8 +: 8]);",
+            f"        wr_path_datachk_calc[b] = {inv}^decoded_wr_data[b*8 +: 8];",
+            "    end",
+            f"    for(int s=0; s<{ns}; s++) begin",
+            f"        wr_path_strbchk_calc[s] = {inv}^(8'(wr_path_strb >> (s*8)));",
+            "    end",
+            "end",
+            "assign wr_path_parity_error = decoded_req & decoded_req_is_wr & (",
+            "    (|(wr_path_strb & (wr_path_datachk_calc ^ decoded_wr_datachk)))",
+            "    | (|wr_path_biten_err)",
+            "    | (wr_path_strbchk_calc != decoded_wr_strbchk)",
+            ");",
+        ]
+        return "\n".join(lines)
+
+
 def parity_path_id(top_node: 'AddrmapNode', field: 'FieldNode', byte: Optional[int] = None) -> str:
     """Build an SV-legal identifier suffix from a field path, e.g.:
 

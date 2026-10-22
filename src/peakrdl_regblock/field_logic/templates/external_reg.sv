@@ -9,6 +9,9 @@ always_ff {{get_always_ff_event(resetsignal)}} begin
     {%- if has_sw_writable %}
         {{prefix}}.wr_data <= '0;
         {{prefix}}.wr_biten <= '0;
+        {%- if wr_path_parity %}
+        {{prefix}}.wr_datachk <= '0;
+        {%- endif %}
     {%- endif %}
     end else begin
     {%- if has_sw_readable and has_sw_writable %}
@@ -22,6 +25,9 @@ always_ff {{get_always_ff_event(resetsignal)}} begin
     {%- if has_sw_writable %}
         {{prefix}}.wr_data <= decoded_wr_data{{bslice}};
         {{prefix}}.wr_biten <= decoded_wr_biten{{bslice}};
+        {%- if wr_path_parity %}
+        {{prefix}}.wr_datachk <= decoded_wr_datachk{{datachk_slice}};
+        {%- endif %}
     {%- endif %}
     end
 end
@@ -41,6 +47,9 @@ assign {{prefix}}.req_is_wr = decoded_req_is_wr;
 {%- if has_sw_writable %}
 assign {{prefix}}.wr_data = decoded_wr_data{{bslice}};
 assign {{prefix}}.wr_biten = decoded_wr_biten{{bslice}};
+{%- if wr_path_parity %}
+assign {{prefix}}.wr_datachk = decoded_wr_datachk{{datachk_slice}};
+{%- endif %}
 {%- endif %}
 
 

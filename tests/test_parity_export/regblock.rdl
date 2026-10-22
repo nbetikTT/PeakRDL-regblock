@@ -1,0 +1,17 @@
+addrmap top {
+    default sw = rw;
+    default hw = r;
+
+    reg full_reg {
+        field {} f[32] = 0;
+    };
+
+    // Partial top byte and a field that is not hw-readable (no value, no parity)
+    reg narrow_reg {
+        field {} f[12:0] = 0;
+        field { hw = na; } hidden[20:16] = 0;
+    };
+
+    full_reg   full   @ 0x0;
+    narrow_reg narrow @ 0x4;
+};

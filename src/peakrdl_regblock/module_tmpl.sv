@@ -16,6 +16,10 @@ module {{ds.module_name}}
     logic [{{cpuif.addr_width-1}}:0] cpuif_addr;
     logic [{{cpuif.data_width-1}}:0] cpuif_wr_data;
     logic [{{cpuif.data_width-1}}:0] cpuif_wr_biten;
+{%- if ds.wr_path_parity %}
+    logic [{{cpuif.wr_datachk_width-1}}:0] cpuif_wr_datachk;
+    logic [{{cpuif.wr_strbchk_width-1}}:0] cpuif_wr_strbchk;
+{%- endif %}
     logic cpuif_req_stall_wr;
     logic cpuif_req_stall_rd;
 
@@ -99,6 +103,10 @@ module {{ds.module_name}}
     logic decoded_req_is_wr;
     logic [{{cpuif.data_width-1}}:0] decoded_wr_data;
     logic [{{cpuif.data_width-1}}:0] decoded_wr_biten;
+{%- if ds.wr_path_parity %}
+    logic [{{cpuif.wr_datachk_width-1}}:0] decoded_wr_datachk;
+    logic [{{cpuif.wr_strbchk_width-1}}:0] decoded_wr_strbchk;
+{%- endif %}
 
     always_comb begin
         automatic logic is_valid_addr;
@@ -157,6 +165,10 @@ module {{ds.module_name}}
     assign decoded_req_is_wr = cpuif_req_is_wr;
     assign decoded_wr_data = cpuif_wr_data;
     assign decoded_wr_biten = cpuif_wr_biten;
+{%- if ds.wr_path_parity %}
+    assign decoded_wr_datachk = cpuif_wr_datachk;
+    assign decoded_wr_strbchk = cpuif_wr_strbchk;
+{%- endif %}
 {% if ds.has_writable_msb0_fields %}
     // bitswap for use by fields with msb0 ordering
     logic [{{cpuif.data_width-1}}:0] decoded_wr_data_bswap;
@@ -209,6 +221,13 @@ module {{ds.module_name}}
     {{bytewise_parity_mod.get_field_error_reducers()|indent}}
 
     {{bytewise_parity_mod.get_comb_error_assign()|indent}}
+{%- endif %}
+{%- if ds.wr_path_parity %}
+
+    //--------------------------------------------------------------------------
+    // Write-path parity check
+    //--------------------------------------------------------------------------
+    {{wr_path_parity_mod.get_implementation()|indent}}
 {%- endif %}
 
 {%- if ds.has_buffered_read_regs %}

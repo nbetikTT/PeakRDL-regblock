@@ -7,6 +7,7 @@ from ..struct_generator import RDLFlatStructGenerator
 from ..identifier_filter import kw_filter as kwf
 from ..sv_int import SVInt
 from ..utils import clog2
+from ..parity import is_parity_excluded
 
 if TYPE_CHECKING:
     from systemrdl.node import Node, SignalNode, AddressableNode, RegfileNode
@@ -206,6 +207,9 @@ class OutputStructGenerator_Hier(HWIFStructGenerator):
         self.add_member("req_is_wr")
         self.add_member("wr_data", self.hwif.ds.cpuif_data_width)
         self.add_member("wr_biten", self.hwif.ds.cpuif_data_width)
+        if self.hwif.ds.wr_path_parity:
+            self.add_member("wr_datachk", self.hwif.ds.cpuif_data_width // 8)
+            self.add_member("wr_strbchk", (self.hwif.ds.cpuif_data_width // 8 + 7) // 8)
 
     def enter_Addrmap(self, node: 'AddrmapNode') -> Optional[WalkerAction]:
         super().enter_Addrmap(node)
@@ -236,6 +240,10 @@ class OutputStructGenerator_Hier(HWIFStructGenerator):
             if node.has_sw_writable:
                 self.add_external_reg_wr_data("wr_data", node, width, n_subwords)
                 self.add_external_reg_wr_data("wr_biten", node, width, n_subwords)
+                if self.hwif.ds.wr_path_parity:
+                    # Per-byte parity of wr_data. No strobe parity: a narrower
+                    # register cannot see the strobes outside its own bytes.
+                    self.add_member("wr_datachk", width // 8)
             return WalkerAction.SkipDescendants
 
         return WalkerAction.Continue
@@ -286,6 +294,11 @@ class OutputStructGenerator_Hier(HWIFStructGenerator):
             signed = node.get_property("is_signed")
 
             self.add_member("value", node.width, lsb=lsb, signed=signed)
+
+            # Stored byte parity travelling with the value, for re-checks at the consumer
+            if (self.hwif.ds.parity_export and self.hwif.ds.bytewise_parity
+                    and node.implements_storage and not is_parity_excluded(node)):
+                self.add_member("parity", (node.width + 7) // 8)
 
         # Generate output bit signals enabled via property
         for prop_name in ["anded", "ored", "xored", "swmod", "swacc", "overflow", "underflow", "rd_swacc", "wr_swacc"]:

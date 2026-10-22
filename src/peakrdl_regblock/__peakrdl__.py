@@ -183,6 +183,29 @@ class Exporter(ExporterSubcommandPlugin):
             every storage field is protected."""
         )
 
+        arg_group.add_argument(
+            "--parity-wr-path",
+            action="store_true",
+            default=False,
+            help="""Carry received write-data parity through the regblock.
+            Adds AXI5-style WDATACHK/WSTRBCHK inputs to the CPU interface
+            (AXI4-Lite flat only), checks them against the write data and byte
+            enables at the point where fields consume them, and reports a
+            mismatch on the combinational 'wr_path_parity_error' output.
+            External registers/blocks also receive the per-byte write-data
+            parity in hwif_out. Polarity follows --odd-parity."""
+        )
+
+        arg_group.add_argument(
+            "--parity-export",
+            action="store_true",
+            default=False,
+            help="""Expose the stored byte-wise parity of every parity-protected
+            field that has a value output as 'parity' next to 'value' in
+            hwif_out, so a consumer can re-check the value at its point of use.
+            Requires --parity-byte."""
+        )
+
     def do_export(self, top_node: 'AddrmapNode', options: 'argparse.Namespace') -> None:
         cpuifs = self.get_cpuifs()
 
@@ -249,4 +272,6 @@ class Exporter(ExporterSubcommandPlugin):
             default_reset_async=default_reset_async,
             odd_parity=options.odd_parity,
             bytewise_parity=options.parity_byte,
+            wr_path_parity=options.parity_wr_path,
+            parity_export=options.parity_export,
         )

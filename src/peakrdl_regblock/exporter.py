@@ -20,6 +20,7 @@ from .write_buffering import WriteBuffering
 from .read_buffering import ReadBuffering
 from .external_acks import ExternalWriteAckGenerator, ExternalReadAckGenerator
 from .parity import (
+    WritePathParityGenerator,
     ParityErrorReduceGenerator,
     BytewiseParityModuleGenerator,
     BytewiseParityPackageGenerator,
@@ -131,6 +132,18 @@ class RegblockExporter:
             If overriden to True: If an illegal access is performed to a read-only or write-only
             register, the CPUIF response signal shows an error. For example: APB.PSLVERR = 1'b1,
             AXI4LITE.*RESP = 2'b10.
+        odd_parity: bool
+            Use odd instead of even parity for all generated parity logic.
+        bytewise_parity: bool
+            Protect every storage field with byte-wise parity (see ``--parity-byte``).
+        wr_path_parity: bool
+            Carry received write-data parity through the regblock and check it
+            where the write is consumed (see ``--parity-wr-path``). Requires a
+            CPU interface that exposes parity sideband ports.
+        parity_export: bool
+            Expose each parity-protected field's stored byte parity as
+            ``hwif_out.<field>.parity`` next to ``value`` (see ``--parity-export``).
+            Requires ``bytewise_parity``.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):
@@ -155,6 +168,13 @@ class RegblockExporter:
 
         # Construct exporter components
         self.cpuif = cpuif_cls(self)
+        if self.ds.wr_path_parity and not self.cpuif.supports_wr_path_parity:
+            raise ValueError(
+                f"wr_path_parity is not supported by CPU interface '{cpuif_cls.__name__}'. "
+                "Only the flattened AXI4-Lite interface exposes the WDATACHK/WSTRBCHK ports."
+            )
+        if self.ds.parity_export and not self.ds.bytewise_parity:
+            raise ValueError("parity_export requires bytewise_parity (--parity-byte).")
         self.hwif = Hwif(self, hwif_report_file=hwif_report_file)
         self.readback = Readback(self)
         self.address_decode = AddressDecode(self)
@@ -167,6 +187,7 @@ class RegblockExporter:
         parity = ParityErrorReduceGenerator(self)
         bytewise_parity_mod = BytewiseParityModuleGenerator(self)
         bytewise_parity_pkg = BytewiseParityPackageGenerator(self)
+        wr_path_parity_mod = WritePathParityGenerator(self)
 
         # Validate that there are no unsupported constructs
         DesignValidator(self).do_validate()
@@ -190,6 +211,7 @@ class RegblockExporter:
             "parity": parity,
             "bytewise_parity_mod": bytewise_parity_mod,
             "bytewise_parity_pkg": bytewise_parity_pkg,
+            "wr_path_parity_mod": wr_path_parity_mod,
             "get_always_ff_event": self.dereferencer.get_always_ff_event,
             "ds": self.ds,
             "kwf": kwf,
@@ -254,6 +276,10 @@ class RegblockExporter:
             ]
             groups.append(",\n".join(bw_ports))
 
+        # Write-path parity check output
+        if self.ds.wr_path_parity:
+            groups.append("output logic wr_path_parity_error")
+
         # CPU interface ports
         groups.append(self.cpuif.port_declaration)
 
@@ -304,6 +330,12 @@ class DesignState:
 
         # Bytewise parity mode
         self.bytewise_parity = kwargs.pop("bytewise_parity", False) # type: bool
+
+        # Carry received write parity through to the point of use
+        self.wr_path_parity = kwargs.pop("wr_path_parity", False) # type: bool
+
+        # Expose the stored field parity next to the value output
+        self.parity_export = kwargs.pop("parity_export", False) # type: bool
 
         #------------------------
         # Info about the design

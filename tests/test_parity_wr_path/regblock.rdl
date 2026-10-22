@@ -1,0 +1,24 @@
+addrmap top {
+    default sw = rw;
+    default hw = r;
+
+    // Full-width field
+    reg full_reg {
+        field {} f[32] = 0;
+    };
+
+    // Fields that leave bus bytes 1 and 3 unused
+    reg sparse_reg {
+        field {} lo[7:0] = 0;
+        field {} hi[23:16] = 0;
+    };
+
+    // External register: wr_datachk must be exposed in hwif_out
+    reg ext_reg_t {
+        field {} f[32] = 0;
+    };
+
+    full_reg   full   @ 0x0;
+    sparse_reg sparse @ 0x4;
+    external ext_reg_t ext @ 0x8;
+};
